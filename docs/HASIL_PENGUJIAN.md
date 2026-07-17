@@ -5,6 +5,8 @@ Dokumen ini adalah bukti eksekusi nyata dari `scripts/test_api.sh` (skenario pen
 - **Target pengujian:** deployment VPS (`https://fastapi.duaplusatu.my.id`)
 - **Jumlah skenario:** 9
 - **Hasil ringkas (run pertama):** 9 / 9 lolos berdasarkan `reason_code`, dengan satu temuan kualitas retrieval pada skenario #1 (lihat [Catatan Temuan](#catatan-temuan--kalibrasi-retrieval) di bawah)
+- **Hasil ringkas (run kedua, pasca redeploy):** 9 / 9 lolos berdasarkan `reason_code`, tapi temuan skenario #1 **belum berubah** — root cause ternyata konfigurasi `.env` di VPS belum ikut diperbarui, bukan masalah kode (lihat sub-bagian "Run Kedua" di [Catatan Temuan](#catatan-temuan--kalibrasi-retrieval))
+- **Hasil ringkas (run ketiga, pasca update `.env`):** 9 / 9 lolos, **temuan skenario #1 terkonfirmasi teratasi** — jawaban sekarang benar ("SLA pengakuan untuk tiket P1 adalah 30 menit") dan jumlah kutipan bertambah jadi 7–8 (sebelumnya konsisten 5), membuktikan `TOP_K=8`/`SIMILARITY_THRESHOLD=0.30` sudah aktif. Status: ✅ **RESOLVED**.
 
 ---
 
@@ -180,7 +182,41 @@ Meskipun 9/9 skenario lolos berdasarkan `reason_code`, pemeriksaan isi jawaban s
 
 **Tindakan yang diambil:** parameter retrieval dikalibrasi ulang dari `TOP_K=5, SIMILARITY_THRESHOLD=0.35` menjadi `TOP_K=8, SIMILARITY_THRESHOLD=0.30` (lihat `.env.example` dan `app/services/agent.py`), untuk memperbesar peluang chunk yang relevan tapi leksikal berbeda tetap masuk konteks.
 
-**Rekomendasi verifikasi lanjutan:** jalankan ulang `./scripts/test_api.sh <url-deployment>` setelah redeploy dengan parameter baru, khususnya untuk skenario #1, dan perbarui bagian ini dengan hasil run kedua.
+### Run Kedua (pasca redeploy) — parameter baru belum benar-benar aktif
+
+Setelah redeploy dan menjalankan ulang `./scripts/test_api.sh`, skenario #1 masih **9/9 secara `reason_code`**, tapi kutipan yang dikembalikan **identik persis** dengan run pertama (chunk `NC-OPS-001-045, 027, 031, 057, 044` — chunk `015` "Tingkat Prioritas" tetap tidak ketemu, dan jumlah kutipan tetap 5 padahal `TOP_K` sudah dinaikkan ke 8).
+
+**Diagnosis:** ini menandakan container yang berjalan **belum benar-benar memakai `TOP_K=8`/`SIMILARITY_THRESHOLD=0.30`**. Root cause: file `.env` di VPS tidak ikut ter-update oleh `git pull` (memang sengaja — `.env` di-`.gitignore` karena berisi rahasia). Kalau `.env` di VPS sudah punya baris eksplisit `TOP_K=5` / `SIMILARITY_THRESHOLD=0.35` dari setup awal, nilai itu tetap menang atas default baru di kode (`os.getenv("TOP_K", "8")` hanya berlaku bila variabel benar-benar tidak ada di `.env`). Rebuild image tidak mengubah isi `.env`.
+
+**Tindak lanjut:** update manual `.env` di VPS (`TOP_K=8`, `SIMILARITY_THRESHOLD=0.30`), lalu `docker compose up -d --force-recreate` (restart cukup, tanpa rebuild), lalu jalankan ulang `./scripts/test_api.sh` untuk verifikasi run ketiga.
+
+### Run Ketiga (pasca update `.env` manual) — ✅ Terverifikasi
+
+Setelah `.env` di VPS diperbarui secara manual (`TOP_K=8`, `SIMILARITY_THRESHOLD=0.30`) dan container di-restart (`docker compose up -d --force-recreate`), skenario #1 dijalankan ulang dengan hasil:
+
+```json
+{
+    "answer": "SLA pengakuan untuk tiket P1 adalah **30 menit**.\n\nSebagai referensi, contoh klasifikasi menyebutkan bahwa insiden dengan jumlah karyawan terdampak melebihi ambang 25 orang (misalnya aplikasi penggajian yang tidak dapat diakses oleh 40 karyawan) memenuhi kriteria P1, dan Service Desk wajib mengakui tiket tersebut dalam 30 menit serta segera memberi notifikasi kepada Manajer Piket, dengan penanganan berlangsung 24/7 hingga layanan pulih.\n\n**Referensi:** Bagian \"Klasifikasi Permintaan dan Prioritas > Contoh Klasifikasi\" (doc_version=2.0, chunk_id=NC-OPS-001-018), didukung juga oleh Bagian \"SOP Gangguan Layanan dan Eskalasi > Alur Penanganan Berdasarkan Prioritas\" (doc_version=2.0, chunk_id=NC-OPS-001-027).",
+    "confidence_label": "medium",
+    "reason_code": "answered",
+    "citations": [
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-045", "section_title": "Ketentuan Khusus Status Menunggu Pemohon", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-027", "section_title": "Alur Penanganan Berdasarkan Prioritas", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-031", "section_title": "Contoh Lengkap", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-057", "section_title": "Pertanyaan Kerahasiaan", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-044", "section_title": "Daftar Status Tiket dan Transisi", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-050", "section_title": "Pertanyaan Prioritas dan SLA", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-052", "section_title": "Pertanyaan Akses", "doc_version": "2.0", "is_active": true},
+        {"doc_id": "NC-OPS-001", "chunk_id": "NC-OPS-001-018", "section_title": "Contoh Klasifikasi", "doc_version": "2.0", "is_active": true}
+    ]
+}
+```
+
+**Hasil:** ✅ **Jawaban sekarang benar** — "30 menit" tersaji eksplisit dan akurat. Jumlah kutipan naik dari 5 menjadi 8, mengonfirmasi `TOP_K=8` sudah aktif.
+
+**Catatan sisa (minor, tidak menghalangi kelulusan):** chunk sumber utama yang dikutip adalah `NC-OPS-001-018` ("Contoh Klasifikasi", yang juga memuat fakta "30 menit" lewat contoh kasus) dan `NC-OPS-001-027`, **bukan** `NC-OPS-001-015` ("Tingkat Prioritas", definisi formalnya). Keduanya sama-sama memuat informasi yang benar, jadi jawabannya tetap akurat — tapi ini menunjukkan model embedding masih mengutamakan kemiripan leksikal-kontekstual ("Contoh Klasifikasi" berisi angka & skenario konkret yang mirip pertanyaan) dibanding definisi formal yang lebih ringkas. Untuk presisi retrieval yang lebih tinggi, lihat rekomendasi hybrid search di README bagian Keterbatasan.
+
+**Konfirmasi seluruh skenario pada run ketiga:** 9 / 9 lolos, termasuk skenario #1 yang kini terverifikasi benar secara isi jawaban (bukan cuma `reason_code`).
 
 ---
 
