@@ -5,6 +5,7 @@ Dokumen ini adalah bukti eksekusi nyata dari `scripts/test_api.sh` (skenario pen
 - **Target pengujian:** deployment VPS (`https://fastapi.duaplusatu.my.id`)
 - **Jumlah skenario:** 9
 - **Hasil ringkas (run pertama):** 9 / 9 lolos berdasarkan `reason_code`, dengan satu temuan kualitas retrieval pada skenario #1 (lihat [Catatan Temuan](#catatan-temuan--kalibrasi-retrieval) di bawah)
+- **Hasil ringkas (run kedua, pasca redeploy):** 9 / 9 lolos berdasarkan `reason_code`, tapi temuan skenario #1 **belum berubah** — root cause ternyata konfigurasi `.env` di VPS belum ikut diperbarui, bukan masalah kode (lihat sub-bagian "Run Kedua" di [Catatan Temuan](#catatan-temuan--kalibrasi-retrieval))
 
 ---
 
@@ -180,7 +181,13 @@ Meskipun 9/9 skenario lolos berdasarkan `reason_code`, pemeriksaan isi jawaban s
 
 **Tindakan yang diambil:** parameter retrieval dikalibrasi ulang dari `TOP_K=5, SIMILARITY_THRESHOLD=0.35` menjadi `TOP_K=8, SIMILARITY_THRESHOLD=0.30` (lihat `.env.example` dan `app/services/agent.py`), untuk memperbesar peluang chunk yang relevan tapi leksikal berbeda tetap masuk konteks.
 
-**Rekomendasi verifikasi lanjutan:** jalankan ulang `./scripts/test_api.sh <url-deployment>` setelah redeploy dengan parameter baru, khususnya untuk skenario #1, dan perbarui bagian ini dengan hasil run kedua.
+### Run Kedua (pasca redeploy) — parameter baru belum benar-benar aktif
+
+Setelah redeploy dan menjalankan ulang `./scripts/test_api.sh`, skenario #1 masih **9/9 secara `reason_code`**, tapi kutipan yang dikembalikan **identik persis** dengan run pertama (chunk `NC-OPS-001-045, 027, 031, 057, 044` — chunk `015` "Tingkat Prioritas" tetap tidak ketemu, dan jumlah kutipan tetap 5 padahal `TOP_K` sudah dinaikkan ke 8).
+
+**Diagnosis:** ini menandakan container yang berjalan **belum benar-benar memakai `TOP_K=8`/`SIMILARITY_THRESHOLD=0.30`**. Root cause: file `.env` di VPS tidak ikut ter-update oleh `git pull` (memang sengaja — `.env` di-`.gitignore` karena berisi rahasia). Kalau `.env` di VPS sudah punya baris eksplisit `TOP_K=5` / `SIMILARITY_THRESHOLD=0.35` dari setup awal, nilai itu tetap menang atas default baru di kode (`os.getenv("TOP_K", "8")` hanya berlaku bila variabel benar-benar tidak ada di `.env`). Rebuild image tidak mengubah isi `.env`.
+
+**Tindak lanjut:** update manual `.env` di VPS (`TOP_K=8`, `SIMILARITY_THRESHOLD=0.30`), lalu `docker compose up -d --force-recreate` (restart cukup, tanpa rebuild), lalu jalankan ulang `./scripts/test_api.sh` untuk verifikasi run ketiga.
 
 ---
 
