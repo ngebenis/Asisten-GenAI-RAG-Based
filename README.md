@@ -242,7 +242,10 @@ repository/
 │       └── agent.py             # Router agentic + orkestrasi panggilan LLM
 ├── requirements.txt
 ├── .env.example
-└── .gitignore
+├── .gitignore
+├── Dockerfile                   # opsional, untuk deployment VPS via Docker
+├── docker-compose.yml           # opsional, untuk deployment VPS via Docker
+└── .dockerignore
 ```
 
 ---
@@ -342,7 +345,9 @@ Setelah berjalan:
 
 ---
 
-## 7. Deployment (FastAPI Cloud)
+## 7. Deployment
+
+### 7.1 FastAPI Cloud (wajib untuk submission)
 
 1. Pastikan `requirements.txt`, kode `app/`, dan dokumen KB di `data/raw_docs/` sudah dikomit ke repositori GitHub publik.
 2. Install FastAPI CLI bila belum ada: `pip install "fastapi-cli[standard]"`.
@@ -356,11 +361,31 @@ Setelah berjalan:
 
 > Karena proses build mengunduh model embedding (`sentence-transformers`) dan `torch` sebagai dependensi, ukuran image dan waktu build lebih besar dibanding service FastAPI biasa — lihat catatan di [Keterbatasan](#9-keterbatasan--kesimpulan).
 
+### 7.2 VPS via Docker (opsional, untuk hosting mandiri)
+
+Repositori ini juga menyertakan `Dockerfile` dan `docker-compose.yml` untuk deploy ke VPS sendiri (mis. Ubuntu 22.04/24.04, minimal 2GB RAM karena dependensi `torch`).
+
+```bash
+# Di VPS, setelah clone repo:
+cp .env.example .env
+nano .env   # isi ANTHROPIC_API_KEY
+
+docker compose up -d --build
+curl http://127.0.0.1:8000/health
+```
+
+`docker-compose.yml` mem-bind container hanya ke `127.0.0.1:8000` — pasang reverse proxy (Nginx/Caddy) di depan untuk expose ke internet lewat port 80/443 sekaligus TLS (Let's Encrypt via `certbot --nginx`). Alur lengkap systemd + Nginx (tanpa Docker) tersedia sebagai referensi tambahan di riwayat percakapan submission ini bila dibutuhkan.
+
 ---
 
 ## 8. Pengujian Pertanyaan Terhadap Dokumen
 
-Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalankan terhadap endpoint `/ask` setelah deployment/lokal):
+Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalankan terhadap endpoint `/ask` setelah deployment/lokal). Skrip `scripts/test_api.sh` menjalankan seluruh skenario ini secara otomatis terhadap URL mana pun:
+
+```bash
+./scripts/test_api.sh                                   # target http://localhost:8000
+./scripts/test_api.sh https://<app-anda>.fastapicloud.dev
+```
 
 | # | Pertanyaan | Jalur yang Diharapkan | `reason_code` yang Diharapkan |
 |---|---|---|---|
