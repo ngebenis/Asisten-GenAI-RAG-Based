@@ -380,7 +380,12 @@ curl http://127.0.0.1:8000/health
 
 ## 8. Pengujian Pertanyaan Terhadap Dokumen
 
-Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalankan terhadap endpoint `/ask` setelah deployment/lokal):
+Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalankan terhadap endpoint `/ask` setelah deployment/lokal). Skrip `scripts/test_api.sh` menjalankan seluruh skenario ini secara otomatis terhadap URL mana pun:
+
+```bash
+./scripts/test_api.sh                                   # target http://localhost:8000
+./scripts/test_api.sh https://<app-anda>.fastapicloud.dev
+```
 
 | # | Pertanyaan | Jalur yang Diharapkan | `reason_code` yang Diharapkan |
 |---|---|---|---|
