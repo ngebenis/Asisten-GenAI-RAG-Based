@@ -155,9 +155,11 @@ Parameter (dapat dikonfigurasi via environment variable, lihat `.env.example`):
 
 | Parameter | Default | Peran |
 |---|---|---|
-| `TOP_K` | `5` | Jumlah chunk kandidat teratas yang diambil per query. |
-| `SIMILARITY_THRESHOLD` | `0.35` | Skor cosine similarity minimum agar chunk dianggap relevan. Di bawah ini, chunk dibuang seluruhnya dari konteks. |
+| `TOP_K` | `8` | Jumlah chunk kandidat teratas yang diambil per query. |
+| `SIMILARITY_THRESHOLD` | `0.30` | Skor cosine similarity minimum agar chunk dianggap relevan. Di bawah ini, chunk dibuang seluruhnya dari konteks. |
 | `HIGH_CONFIDENCE_THRESHOLD` | `0.55` | Ambang skor top-1 untuk menandai jawaban sebagai `confidence_label=high`; di bawahnya tapi masih lolos threshold → `medium`. |
+
+> **Catatan kalibrasi:** nilai `TOP_K`/`SIMILARITY_THRESHOLD` di atas hasil penyesuaian dari nilai awal (`5`/`0.35`) setelah pengujian nyata (lihat `docs/HASIL_PENGUJIAN.md`) menemukan kasus di mana chunk yang benar-benar relevan tidak masuk 5 besar karena query pengguna tidak memakai istilah literal dari dokumen (mis. "SLA" vs "wajib diakui"). Menaikkan `TOP_K` memperbesar peluang chunk yang benar tetap tertangkap meski peringkatnya bukan yang tertinggi.
 
 Alur retrieval (`app/services/agent.py::answer_question`):
 
@@ -387,6 +389,8 @@ Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalan
 ./scripts/test_api.sh https://<app-anda>.fastapicloud.dev
 ```
 
+**Bukti eksekusi nyata** (transkrip pertanyaan, jawaban aktual, dan status PASS/FAIL per skenario, dijalankan terhadap deployment live) tersedia di [`docs/HASIL_PENGUJIAN.md`](docs/HASIL_PENGUJIAN.md) — termasuk satu temuan kalibrasi retrieval dan perbaikannya.
+
 | # | Pertanyaan | Jalur yang Diharapkan | `reason_code` yang Diharapkan |
 |---|---|---|---|
 | 1 | "Berapa lama SLA pengakuan tiket P1?" | Retrieval relevan (skor tinggi) → jawab dengan kutipan "Tingkat Prioritas" | `answered`, confidence `high` |
@@ -414,14 +418,15 @@ Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalan
 ### Keterbatasan
 
 1. **Embedding model perlu diunduh saat build/startup pertama** (dari Hugging Face Hub) — menambah waktu build dan ukuran dependensi (`sentence-transformers` + `torch`) dibanding pendekatan berbasis API embedding murni. Trade-off ini dipilih agar tidak memerlukan kredensial API tambahan di luar Anthropic.
-2. **Threshold similarity bersifat statis dan belum dituning dengan dataset evaluasi berlabel** (mis. golden Q&A set dengan skor precision/recall retrieval) — nilai default (`0.35` / `0.55`) ditetapkan berdasarkan estimasi awal dan sebaiknya dikalibrasi ulang dengan pengujian nyata pasca-deployment.
+2. **Retrieval berbasis embedding bisa meleset untuk query yang tidak memakai istilah literal dari dokumen.** Terbukti pada pengujian nyata (lihat `docs/HASIL_PENGUJIAN.md`): pertanyaan "Berapa lama SLA pengakuan tiket P1?" awalnya (dengan `TOP_K=5`, `SIMILARITY_THRESHOLD=0.35`) gagal mengambil chunk "Tingkat Prioritas" yang justru memuat jawaban persis ("wajib diakui ... dalam waktu 30 menit") — karena kata "SLA" tidak muncul literal di dokumen. Sistem tetap **aman** (LLM menjawab jujur "informasi tidak ditemukan" alih-alih mengarang), tapi kualitas jawabannya turun. Sudah dimitigasi dengan menaikkan `TOP_K` ke `8` dan menurunkan `SIMILARITY_THRESHOLD` ke `0.30`, namun retrieval berbasis embedding tunggal (tanpa query expansion/hybrid search) tetap berisiko mengalami kasus serupa untuk paraphrase yang lebih jauh dari teks dokumen.
 3. **Heuristik deteksi prompt-injection dan out-of-scope berbasis regex/keyword**, bukan classifier ML — efektif untuk pola umum tetapi berpotensi memiliki false negative untuk teknik injeksi yang lebih canggih (mis. encoding, bahasa campuran) atau false positive untuk pertanyaan sah yang kebetulan memuat kata kunci sensitif (mis. "apakah SOP membahas kata sandi?"). System prompt tetap menjadi lapisan pertahanan kedua untuk kasus yang lolos filter regex.
 4. **Sistem stateless per-request** — tidak ada memori percakapan multi-turn; setiap pertanyaan diproses independen.
 5. Verifikasi end-to-end (lihat [bagian 8](#8-pengujian-pertanyaan-terhadap-dokumen)) belum dapat dijalankan penuh dalam lingkungan penyusunan proyek karena keterbatasan akses jaringan; disarankan dijalankan ulang oleh penguji.
 
 ### Rekomendasi Perbaikan
 
-- Menambahkan dataset evaluasi (golden Q&A + expected citation) untuk mengukur precision/recall retrieval secara kuantitatif dan mengkalibrasi threshold.
+- Menambahkan dataset evaluasi (golden Q&A + expected citation) untuk mengukur precision/recall retrieval secara kuantitatif dan mengkalibrasi threshold secara sistematis (bukan trial-and-error manual seperti kalibrasi `TOP_K`/`SIMILARITY_THRESHOLD` saat ini).
+- Menambahkan hybrid retrieval (kombinasi keyword/BM25 + embedding) atau query expansion, agar query yang tidak memakai istilah literal dari dokumen (mis. "SLA" vs "wajib diakui") tetap menemukan chunk yang tepat tanpa harus menaikkan `TOP_K` secara luas.
 - Mengganti heuristik regex dengan lapisan klasifikasi ringan (mis. few-shot classification via LLM murah) untuk deteksi prompt-injection/out-of-scope yang lebih robust.
 - Menambahkan caching index (persist ke disk) bila KB bertambah besar, agar startup lebih cepat.
 - Menambahkan rate limiting dan autentikasi pada endpoint `/ask` untuk penggunaan produksi.

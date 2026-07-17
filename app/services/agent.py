@@ -24,8 +24,8 @@ from app.services.rag import Chunk, rag_pipeline
 
 logger = logging.getLogger(__name__)
 
-TOP_K = int(os.getenv("TOP_K", "5"))
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.35"))
+TOP_K = int(os.getenv("TOP_K", "8"))
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.30"))
 HIGH_CONFIDENCE_THRESHOLD = float(os.getenv("HIGH_CONFIDENCE_THRESHOLD", "0.55"))
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-opus-4-8")
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
