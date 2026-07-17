@@ -16,7 +16,7 @@ Backend service FastAPI yang mengimplementasikan asisten GenAI berbasis **Retrie
 4. [Arsitektur](#4-arsitektur)
 5. [Kontrak API](#5-kontrak-api)
 6. [Cara Menjalankan Lokal](#6-cara-menjalankan-lokal)
-7. [Deployment](#7-deployment-fastapi-cloud)
+7. [Deployment](#7-deployment)
 8. [Pengujian Pertanyaan Terhadap Dokumen](#8-pengujian-pertanyaan-terhadap-dokumen)
 9. [Keterbatasan & Kesimpulan](#9-keterbatasan--kesimpulan)
 
@@ -349,23 +349,11 @@ Setelah berjalan:
 
 ## 7. Deployment
 
-### 7.1 FastAPI Cloud (wajib untuk submission)
+**Aplikasi live:** `https://fastapi.duaplusatu.my.id` — di-deploy sebagai container Docker di VPS (Tencent Cloud), diekspos ke internet lewat Cloudflare (DNS + proxy/tunnel), dengan HTTPS otomatis dari Cloudflare.
 
-1. Pastikan `requirements.txt`, kode `app/`, dan dokumen KB di `data/raw_docs/` sudah dikomit ke repositori GitHub publik.
-2. Install FastAPI CLI bila belum ada: `pip install "fastapi-cli[standard]"`.
-3. Login ke FastAPI Cloud: `fastapi login` (mengikuti alur autentikasi browser).
-4. Deploy dari root repositori: `fastapi deploy` (atau `fastapi cloud deploy`, sesuai versi CLI yang aktif — lihat dokumentasi resmi FastAPI Cloud untuk perintah terbaru saat deployment dilakukan).
-5. Di dashboard FastAPI Cloud, set **secret environment variable**:
-   - `ANTHROPIC_API_KEY` = API key Anthropic Anda (JANGAN pernah dikomit ke repo).
-   - Variabel opsional lain dari `.env.example` bila ingin override default (`LLM_MODEL`, `TOP_K`, dll).
-6. Setelah deploy sukses, verifikasi dengan `GET https://<app>.fastapicloud.dev/health`.
-7. Catat URL aplikasi (`https://<app>.fastapicloud.dev`) untuk disertakan dalam submission.
+### 7.1 VPS via Docker + Cloudflare (metode yang digunakan)
 
-> Karena proses build mengunduh model embedding (`sentence-transformers`) dan `torch` sebagai dependensi, ukuran image dan waktu build lebih besar dibanding service FastAPI biasa — lihat catatan di [Keterbatasan](#9-keterbatasan--kesimpulan).
-
-### 7.2 VPS via Docker (opsional, untuk hosting mandiri)
-
-Repositori ini juga menyertakan `Dockerfile` dan `docker-compose.yml` untuk deploy ke VPS sendiri (mis. Ubuntu 22.04/24.04, minimal 2GB RAM karena dependensi `torch`).
+Repositori ini menyertakan `Dockerfile` dan `docker-compose.yml` untuk deploy ke VPS mana pun (mis. Ubuntu 22.04/24.04, minimal 2GB RAM karena dependensi `torch`).
 
 ```bash
 # Di VPS, setelah clone repo:
@@ -373,8 +361,27 @@ cp .env.example .env
 nano .env   # isi ANTHROPIC_API_KEY
 
 docker compose up -d --build
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/health   # atau port lain sesuai docker-compose.yml
 ```
+
+Domain publik diarahkan ke container tersebut lewat Cloudflare (DNS record + proxy, tanpa perlu buka port 80/443 langsung di VPS bila memakai Cloudflare Tunnel). Setelah live, verifikasi dengan:
+
+```bash
+curl https://fastapi.duaplusatu.my.id/health
+./scripts/test_api.sh https://fastapi.duaplusatu.my.id
+```
+
+### 7.2 FastAPI Cloud (alternatif, opsional)
+
+FastAPI juga menyediakan platform hosting terkelola sendiri (FastAPI Cloud, `https://<app>.fastapicloud.dev`) sebagai opsi lain bila suatu saat ingin pindah dari self-hosted VPS ke platform terkelola:
+
+1. Pastikan `requirements.txt`, kode `app/`, dan dokumen KB di `data/raw_docs/` sudah dikomit ke repositori GitHub publik.
+2. Install FastAPI CLI bila belum ada: `pip install "fastapi-cli[standard]"`.
+3. Login: `fastapi login` (mengikuti alur autentikasi browser).
+4. Deploy dari root repositori: `fastapi deploy`.
+5. Di dashboard, set **secret environment variable** `ANTHROPIC_API_KEY` (dan variabel opsional lain dari `.env.example` bila ingin override default).
+
+> Karena proses build mengunduh model embedding (`sentence-transformers`) dan `torch` sebagai dependensi, ukuran image dan waktu build lebih besar dibanding service FastAPI biasa — lihat catatan di [Keterbatasan](#9-keterbatasan--kesimpulan).
 
 `docker-compose.yml` mem-bind container hanya ke `127.0.0.1:8000` — pasang reverse proxy (Nginx/Caddy) di depan untuk expose ke internet lewat port 80/443 sekaligus TLS (Let's Encrypt via `certbot --nginx`). Alur lengkap systemd + Nginx (tanpa Docker) tersedia sebagai referensi tambahan di riwayat percakapan submission ini bila dibutuhkan.
 
@@ -386,7 +393,7 @@ Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalan
 
 ```bash
 ./scripts/test_api.sh                                   # target http://localhost:8000
-./scripts/test_api.sh https://<app-anda>.fastapicloud.dev
+./scripts/test_api.sh https://fastapi.duaplusatu.my.id   # target deployment live
 ```
 
 **Bukti eksekusi nyata** (transkrip pertanyaan, jawaban aktual, dan status PASS/FAIL per skenario, dijalankan terhadap deployment live) tersedia di [`docs/HASIL_PENGUJIAN.md`](docs/HASIL_PENGUJIAN.md) — termasuk satu temuan kalibrasi retrieval dan perbaikannya.
