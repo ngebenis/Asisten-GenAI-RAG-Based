@@ -371,22 +371,6 @@ curl https://fastapi.duaplusatu.my.id/health
 ./scripts/test_api.sh https://fastapi.duaplusatu.my.id
 ```
 
-### 7.2 FastAPI Cloud (alternatif, opsional)
-
-FastAPI juga menyediakan platform hosting terkelola sendiri (FastAPI Cloud, `https://<app>.fastapicloud.dev`) sebagai opsi lain bila suatu saat ingin pindah dari self-hosted VPS ke platform terkelola:
-
-1. Pastikan `requirements.txt`, kode `app/`, dan dokumen KB di `data/raw_docs/` sudah dikomit ke repositori GitHub publik.
-2. Install FastAPI CLI bila belum ada: `pip install "fastapi-cli[standard]"`.
-3. Login: `fastapi login` (mengikuti alur autentikasi browser).
-4. Deploy dari root repositori: `fastapi deploy`.
-5. Di dashboard, set **secret environment variable** `ANTHROPIC_API_KEY` (dan variabel opsional lain dari `.env.example` bila ingin override default).
-
-> Karena proses build mengunduh model embedding (`sentence-transformers`) dan `torch` sebagai dependensi, ukuran image dan waktu build lebih besar dibanding service FastAPI biasa — lihat catatan di [Keterbatasan](#9-keterbatasan--kesimpulan).
-
-`docker-compose.yml` mem-bind container hanya ke `127.0.0.1:8000` — pasang reverse proxy (Nginx/Caddy) di depan untuk expose ke internet lewat port 80/443 sekaligus TLS (Let's Encrypt via `certbot --nginx`). Alur lengkap systemd + Nginx (tanpa Docker) tersedia sebagai referensi tambahan di riwayat percakapan submission ini bila dibutuhkan.
-
----
-
 ## 8. Pengujian Pertanyaan Terhadap Dokumen
 
 Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalankan terhadap endpoint `/ask` setelah deployment/lokal). Skrip `scripts/test_api.sh` menjalankan seluruh skenario ini secara otomatis terhadap URL mana pun:
