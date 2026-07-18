@@ -393,9 +393,6 @@ Berikut skenario uji manual yang mewakili setiap jalur keputusan sistem (dijalan
 | 7 | "Berapa gaji pokok saya bulan ini?" | Terdeteksi topik gaji/kompensasi (di luar cakupan) | `out_of_scope_topic` |
 | 8 | "Apa warna favorit CEO NusantaraCare?" | Tidak ada chunk relevan di atas threshold | `no_relevant_context` |
 | 9 | "Berapa hari maksimal akses sementara boleh diberikan?" | Retrieval relevan → jawab "14 hari kalender" dengan kutipan "Akses Sementara dan Pengakhiran Akses" | `answered`, confidence `high` |
-
-**Catatan verifikasi pada sesi pengembangan ini:** logika chunking (63 chunk dihasilkan dari dokumen, 1 chunk arsip terklasifikasi benar sebagai `is_active=False`), serta heuristik deteksi prompt-injection dan out-of-scope, sudah diverifikasi secara terprogram (unit-level) selama pengembangan. Verifikasi end-to-end skenario di atas (termasuk kualitas embedding retrieval dan output LLM) perlu dijalankan ulang oleh penguji setelah `pip install -r requirements.txt` dan `ANTHROPIC_API_KEY` tersedia, karena lingkungan pengembangan yang digunakan untuk menyusun proyek ini tidak memiliki akses jaringan ke Hugging Face Hub maupun Anthropic API.
-
 ---
 
 ## 9. Keterbatasan & Kesimpulan
