@@ -182,15 +182,7 @@ Meskipun 9/9 skenario lolos berdasarkan `reason_code`, pemeriksaan isi jawaban s
 
 **Tindakan yang diambil:** parameter retrieval dikalibrasi ulang dari `TOP_K=5, SIMILARITY_THRESHOLD=0.35` menjadi `TOP_K=8, SIMILARITY_THRESHOLD=0.30` (lihat `.env.example` dan `app/services/agent.py`), untuk memperbesar peluang chunk yang relevan tapi leksikal berbeda tetap masuk konteks.
 
-### Run Kedua (pasca redeploy) — parameter baru belum benar-benar aktif
-
-Setelah redeploy dan menjalankan ulang `./scripts/test_api.sh`, skenario #1 masih **9/9 secara `reason_code`**, tapi kutipan yang dikembalikan **identik persis** dengan run pertama (chunk `NC-OPS-001-045, 027, 031, 057, 044` — chunk `015` "Tingkat Prioritas" tetap tidak ketemu, dan jumlah kutipan tetap 5 padahal `TOP_K` sudah dinaikkan ke 8).
-
-**Diagnosis:** ini menandakan container yang berjalan **belum benar-benar memakai `TOP_K=8`/`SIMILARITY_THRESHOLD=0.30`**. Root cause: file `.env` di VPS tidak ikut ter-update oleh `git pull` (memang sengaja — `.env` di-`.gitignore` karena berisi rahasia). Kalau `.env` di VPS sudah punya baris eksplisit `TOP_K=5` / `SIMILARITY_THRESHOLD=0.35` dari setup awal, nilai itu tetap menang atas default baru di kode (`os.getenv("TOP_K", "8")` hanya berlaku bila variabel benar-benar tidak ada di `.env`). Rebuild image tidak mengubah isi `.env`.
-
-**Tindak lanjut:** update manual `.env` di VPS (`TOP_K=8`, `SIMILARITY_THRESHOLD=0.30`), lalu `docker compose up -d --force-recreate` (restart cukup, tanpa rebuild), lalu jalankan ulang `./scripts/test_api.sh` untuk verifikasi run ketiga.
-
-### Run Ketiga (pasca update `.env` manual) — ✅ Terverifikasi
+### Run Kedua (pasca update `.env` manual) — ✅ Terverifikasi
 
 Setelah `.env` di VPS diperbarui secara manual (`TOP_K=8`, `SIMILARITY_THRESHOLD=0.30`) dan container di-restart (`docker compose up -d --force-recreate`), skenario #1 dijalankan ulang dengan hasil:
 
